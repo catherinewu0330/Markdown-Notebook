@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="zh-TW" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markdown Live Preview Notebook</title>
+    
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fira+Code&display=swap" rel="stylesheet">
+    <!-- Highlight.js CSS Theme -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css" id="hljs-theme">
+
+    <style>
+        /* ==================== 變數定義 (色彩與主題) ==================== */
+        :root {
+            --bg-app: #f4f7f9;
+            --bg-sidebar: rgba(255, 255, 255, 0.85);
+            --bg-toolbar: rgba(255, 255, 255, 0.95);
+            --bg-pane: #ffffff;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --border-color: #e2e8f0;
+            --accent-color: #3b82f6;
+            --accent-hover: #2563eb;
+            --resizer-bg: #e2e8f0;
+            --resizer-hover: #3b82f6;
+            --note-hover: #f1f5f9;
+            --note-active: #e0f2fe;
+            --note-active-border: #3b82f6;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
+            --shadow-md: 0 4px 6px rgba(0,0,0,0.05);
+            --backdrop-blur: blur(12px);
+            --code-bg: #f1f5f9;
+            --code-text: #1e293b;
+            --scrollbar-bg: #f8fafc;
+            --scrollbar-thumb: #cbd5e1;
+        }
+
+        /* 深色主題漸層設計 */
+        [data-theme="dark"] {
+            --bg-app: linear-gradient(135deg, #0f172a, #1e293b);
+            --bg-sidebar: rgba(15, 23, 42, 0.7);
+            --bg-toolbar: rgba(15, 23, 42, 0.85);
+            --bg-pane: rgba(30, 41, 59, 0.6);
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --border-color: #334155;
+            --accent-color: #8b5cf6;
+            --accent-hover: #a78bfa;
+            --resizer-bg: #334155;
+            --resizer-hover: #8b5cf6;
+            --note-hover: rgba(51, 65, 85, 0.8);
+            --note-active: rgba(51, 65, 85, 1);
+            --note-active-border: #8b5cf6;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+            --shadow-md: 0 4px 6px rgba(0,0,0,0.2);
+            --code-bg: rgba(0, 0, 0, 0.3);
+            --code-text: #e2e8f0;
+            --scrollbar-bg: transparent;
+            --scrollbar-thumb: #475569;
+        }
+
+        /* ==================== 基礎重置與全域樣式 ==================== */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: var(--bg-app);
+            color: var(--text-primary);
+            height: 100vh;
+            overflow: hidden;
+            transition: background 0.3s, color 0.3s;
+        }
+
+        /* 自訂捲軸 */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: var(--scrollbar-bg); }
+        ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
+
+        /* ==================== 版面結構 ==================== */
+        .app-container {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* ==================== 側邊欄 (筆記列表) ==================== */
+        .sidebar {
+            width: 260px;
+            background: var(--bg-sidebar);
+            backdrop-filter: var(--backdrop-blur);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            transition: width 0.3s, transform 0.3s;
+            z-index: 10;
+        }
+
+        .sidebar.hidden {
+            width: 0;
+            border-right: none;
+            overflow: hidden;
+        }
+
+        .sidebar-header {
+            padding: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .sidebar-header h2 { font-size: 1.1rem; font-weight: 600; }
+
+        .btn-icon {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-radius: 6px;
+            padding: 0.5rem;
+            font-size: 1rem;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-icon:hover, .btn-icon.active {
+            background: rgba(128, 128, 128, 0.15);
+            color: var(--accent-color);
+        }
+
+        .note-list {
+            list-style: none;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .note-item {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+        }
+
+        .note-item:hover { background: var(--note-hover); }
+        .note-item.active {
+            background: var(--note-active);
+            border-left-color: var(--note-active-border);
+        }
+
+        .note-info { overflow: hidden; flex: 1; }
+        .note-title {
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 0.3rem;
+            font-size: 0.95rem;
+        }
+
+        .note-date { font-size: 0.75rem; color: var(--text-secondary); }
+
+        .btn-delete {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.2s, color 0.2s;
+            padding: 0.4rem;
+            border-radius: 4px;
+        }
+
+        .note-item:hover .btn-delete { opacity: 1; }
+        .btn-delete:hover { color: #ef4444; background: rgba(239, 68, 68, 0.1); }
+
+        /* ==================== 主內容區塊 ==================== */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        /* 工具列 */
+        .toolbar {
+            min-height: 54px;
+            background: var(--bg-toolbar);
+            backdrop-filter: var(--backdrop-blur);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 5px 1rem;
+            box-shadow: var(--shadow-sm);
+            z-index: 5;
+            flex-wrap: wrap; /* 允許換行 */
+            gap: 5px;
+        }
+
+        .toolbar-group { 
+            display: flex; 
+            align-items: center; 
+            gap: 2px; 
+            flex-wrap: wrap; 
+        }
+
+        .divider {
+            width: 1px;
+            height: 20px;
+            background: var(--border-color);
+            margin: 0 4px;
+        }
+
+        /* 根據網頁寬度縮放按鈕大小 */
+        @media (max-width: 1200px) {
+            .btn-icon { padding: 0.4rem; font-size: 0.95rem; }
+            .divider { margin: 0 2px; }
+        }
+
+        @media (max-width: 992px) {
+            .toolbar { padding: 5px 0.5rem; }
+            .btn-icon { padding: 0.35rem; font-size: 0.9rem; }
+            .sidebar { width: 220px; }
+        }
+
+        @media (max-width: 768px) {
+            .toolbar { justify-content: center; }
+            .toolbar-group { justify-content: center; width: 100%; }
+            .divider { display: none; }
+            .btn-icon { padding: 0.3rem; font-size: 0.85rem; }
+        }
+        
+        .divider {
+            width: 1px;
+            height: 24px;
+            background: var(--border-color);
+            margin: 0 0.5rem;
+        }
+
+        /* 工作區 (編輯器 + 預覽) */
+        .workspace {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .pane {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            background: var(--bg-pane);
+            transition: flex 0.2s;
+        }
+
+        .editor-pane { flex: 0 0 50%; }
+        .preview-pane {
+            flex: 1 1 0%;
+            overflow-y: auto;
+            border-left: 1px solid var(--border-color);
+        }
+
+        /* 拖曳分隔線 */
+        .resizer {
+            width: 6px;
+            background: var(--resizer-bg);
+            cursor: col-resize;
+            z-index: 10;
+            transition: background 0.2s;
+            margin: 0 -3px; /* 增加感應區域 */
+            position: relative;
+        }
+        .resizer:hover, .resizer.active { background: var(--resizer-hover); }
+
+        /* ==================== 編輯區塊 ==================== */
+        #editor {
+            flex: 1;
+            width: 100%;
+            resize: none;
+            border: none;
+            outline: none;
+            padding: 1.5rem;
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: 1rem;
+            line-height: 1.6;
+            background: transparent;
+            color: inherit;
+        }
+
+        /* 狀態列 */
+        .statusbar {
+            height: 32px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            padding: 0 1.5rem;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            gap: 1.5rem;
+            background: var(--bg-toolbar);
+        }
+
+        /* ==================== Markdown 預覽區 ==================== */
+        #preview {
+            padding: 2rem 3rem;
+            font-family: 'Inter', system-ui, sans-serif;
+            line-height: 1.7;
+            word-break: break-word;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .markdown-body h1, .markdown-body h2, .markdown-body h3, 
+        .markdown-body h4, .markdown-body h5, .markdown-body h6 {
+            margin-top: 1.5em; margin-bottom: 0.5em; font-weight: 600; line-height: 1.25;
+            color: var(--text-primary);
+        }
+        .markdown-body h1 { font-size: 2.2em; border-bottom: 1px solid var(--border-color); padding-bottom: .3em; }
+        .markdown-body h2 { font-size: 1.6em; border-bottom: 1px solid var(--border-color); padding-bottom: .3em; }
+        .markdown-body p, .markdown-body blockquote, .markdown-body ul, .markdown-body ol, 
+        .markdown-body table, .markdown-body pre { margin-top: 0; margin-bottom: 16px; }
+        
+        .markdown-body blockquote {
+            padding: 0.5em 1em;
+            color: var(--text-secondary);
+            border-left: 0.25em solid var(--accent-color);
+            background: rgba(128, 128, 128, 0.05);
+            border-radius: 0 4px 4px 0;
+        }
+        
+        .markdown-body ul, .markdown-body ol { padding-left: 2em; }
+        
+        .markdown-body code {
+            padding: 0.2em 0.4em;
+            font-size: 85%;
+            background-color: var(--code-bg);
+            color: var(--code-text);
+            border-radius: 6px;
+            font-family: 'Fira Code', monospace;
+        }
+        
+        .markdown-body pre {
+            padding: 16px; overflow: auto; font-size: 85%; line-height: 1.45;
+            background-color: #282c34; color: #abb2bf; border-radius: 8px;
+        }
+        [data-theme="light"] .markdown-body pre {
+            background-color: #f8fafc; color: #383a42; border: 1px solid var(--border-color);
+        }
+        .markdown-body pre code { background-color: transparent; padding: 0; color: inherit; }
+        
+        .markdown-body table { border-spacing: 0; border-collapse: collapse; width: 100%; }
+        .markdown-body table th, .markdown-body table td {
+            padding: 8px 13px; border: 1px solid var(--border-color);
+        }
+        .markdown-body table tr:nth-child(2n) { background-color: rgba(128, 128, 128, 0.05); }
+        
+        .markdown-body img { max-width: 100%; border-radius: 6px; }
+        .markdown-body hr {
+            height: 1px; padding: 0; margin: 24px 0;
+            background-color: var(--border-color); border: 0;
+        }
+        .markdown-body input[type="checkbox"] { margin: 0 0.2em 0.25em -1.6em; vertical-align: middle; }
+
+        /* ==================== 列印及匯出樣式 ==================== */
+        @media print {
+            body, html { height: auto; overflow: auto; background: transparent !important; color: #000 !important; }
+            .sidebar, .toolbar, .editor-pane, .resizer, .statusbar { display: none !important; }
+            .app-container, .main-content, .workspace { display: block; height: auto; overflow: visible; }
+            .preview-pane { overflow: visible; border: none; background: transparent !important; }
+            #preview { padding: 0; max-width: none; }
+            .markdown-body, .markdown-body h1, .markdown-body h2, .markdown-body h3 { color: #000 !important; }
+            .markdown-body pre { border: 1px solid #ccc; page-break-inside: avoid; background: #fff !important; color: #000 !important; }
+            .markdown-body pre code { color: #000 !important; }
+            .markdown-body blockquote { color: #333 !important; border-left-color: #ccc !important; }
+            .markdown-body code { background: #f0f0f0 !important; color: #000 !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- ==================== 側邊欄 ==================== -->
+        <aside id="sidebar" class="sidebar">
+            <div class="sidebar-header">
+                <h2>我的筆記</h2>
+                <div class="toolbar-group">
+                    <button id="btn-new-note" class="btn-icon" title="新增筆記 (Ctrl+N)">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                    <button id="btn-close-sidebar-inner" class="btn-icon" title="收起側邊欄">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                </div>
+            </div>
+            <ul id="note-list" class="note-list"></ul>
+        </aside>
+
+        <!-- ==================== 主內容 ==================== -->
+        <main class="main-content">
+            <!-- 工具列 -->
+            <header class="toolbar" id="toolbar">
+                <div class="toolbar-group">
+                    <button id="btn-toggle-sidebar" class="btn-icon" title="切換側邊欄 (Ctrl+\)"><i class="fas fa-bars"></i></button>
+                    <div class="divider"></div>
+                    
+                    <!-- 格式化按鈕 -->
+                    <button class="btn-icon format-btn" data-format="bold" title="粗體 (Ctrl+B)"><i class="fas fa-bold"></i></button>
+                    <button class="btn-icon format-btn" data-format="italic" title="斜體 (Ctrl+I)"><i class="fas fa-italic"></i></button>
+                    <button class="btn-icon format-btn" data-format="strikethrough" title="刪除線"><i class="fas fa-strikethrough"></i></button>
+                    <div class="divider"></div>
+                    
+                    <button class="btn-icon format-btn" data-format="h1" title="標題 1"><i class="fas fa-heading"></i><sub>1</sub></button>
+                    <button class="btn-icon format-btn" data-format="h2" title="標題 2"><i class="fas fa-heading"></i><sub>2</sub></button>
+                    <button class="btn-icon format-btn" data-format="h3" title="標題 3"><i class="fas fa-heading"></i><sub>3</sub></button>
+                    <div class="divider"></div>
+                    
+                    <button class="btn-icon format-btn" data-format="ul" title="無序列表"><i class="fas fa-list-ul"></i></button>
+                    <button class="btn-icon format-btn" data-format="ol" title="有序列表"><i class="fas fa-list-ol"></i></button>
+                    <button class="btn-icon format-btn" data-format="task" title="待辦事項"><i class="fas fa-tasks"></i></button>
+                    <div class="divider"></div>
+                    
+                    <button class="btn-icon format-btn" data-format="quote" title="引用"><i class="fas fa-quote-right"></i></button>
+                    <button class="btn-icon format-btn" data-format="code" title="行內程式碼"><i class="fas fa-code"></i></button>
+                    <button class="btn-icon format-btn" data-format="codeblock" title="程式碼區塊"><i class="fas fa-file-code"></i></button>
+                    <div class="divider"></div>
+                    
+                    <button class="btn-icon format-btn" data-format="link" title="連結 (Ctrl+K)"><i class="fas fa-link"></i></button>
+                    <button class="btn-icon format-btn" data-format="image" title="圖片"><i class="far fa-image"></i></button>
+                    <button class="btn-icon format-btn" data-format="table" title="表格"><i class="fas fa-table"></i></button>
+                    <button class="btn-icon format-btn" data-format="hr" title="分隔線"><i class="fas fa-minus"></i></button>
+                </div>
+
+                <div class="toolbar-group">
+                    <!-- 檢視模式 -->
+                    <button id="btn-view-edit" class="btn-icon" title="僅編輯"><i class="fas fa-pen"></i></button>
+                    <button id="btn-view-split" class="btn-icon active" title="雙欄模式"><i class="fas fa-columns"></i></button>
+                    <button id="btn-view-preview" class="btn-icon" title="僅預覽"><i class="fas fa-eye"></i></button>
+                    <div class="divider"></div>
+                    
+                    <!-- 匯出與設定 -->
+                    <button id="btn-export-md" class="btn-icon" title="匯出 .md"><i class="fas fa-file-download"></i></button>
+                    <button id="btn-export-html" class="btn-icon" title="匯出 .html"><i class="fab fa-html5"></i></button>
+                    <button id="btn-print" class="btn-icon" title="列印 / 匯出 PDF"><i class="fas fa-print"></i></button>
+                    <div class="divider"></div>
+                    
+                    <button id="btn-theme" class="btn-icon" title="切換深/淺色主題"><i class="fas fa-moon"></i></button>
+                    <button id="btn-fullscreen" class="btn-icon" title="全螢幕 (F11)"><i class="fas fa-expand"></i></button>
+                </div>
+            </header>
+            
+            <!-- 工作區 -->
+            <div class="workspace" id="workspace">
+                <!-- 左側：編輯區 -->
+                <div class="pane editor-pane" id="editor-pane">
+                    <textarea id="editor" spellcheck="false" placeholder="在此輸入 Markdown 內容..."></textarea>
+                    <div class="statusbar" id="statusbar">
+                        <span>總字數: <span id="word-count">0</span></span>
+                        <span>中文字: <span id="cn-word-count">0</span></span>
+                        <span>行數: <span id="line-count">1</span></span>
+                    </div>
+                </div>
+                
+                <!-- 可拖曳分隔線 -->
+                <div class="resizer" id="resizer" title="拖曳調整寬度"></div>
+                
+                <!-- 右側：預覽區 -->
+                <div class="pane preview-pane" id="preview-pane">
+                    <div id="preview" class="markdown-body"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ==================== 外部函式庫 ==================== -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+    <!-- ==================== 核心程式碼 ==================== -->
+    <script>
+        // DOM 元素選取
+        const editor = document.getElementById('editor');
+        const preview = document.getElementById('preview');
+        const noteList = document.getElementById('note-list');
+        const sidebar = document.getElementById('sidebar');
+        const workspace = document.getElementById('workspace');
+        const editorPane = document.getElementById('editor-pane');
+        const previewPane = document.getElementById('preview-pane');
+        const resizer = document.getElementById('resizer');
+        const htmlElement = document.documentElement;
+        
+        // 狀態管理
+        let notes = [];
+        let activeNoteId = null;
+        let isResizing = false;
+        let saveTimeout = null;
+
+        // ==================== 1. 資料儲存管理 (LocalStorage) ====================
+        const Storage = {
+            getNotes: () => JSON.parse(localStorage.getItem('md_notes') || '[]'),
+            saveNotes: (data) => localStorage.setItem('md_notes', JSON.stringify(data)),
+            getActiveNoteId: () => localStorage.getItem('md_active_note_id'),
+            setActiveNoteId: (id) => localStorage.setItem('md_active_note_id', id),
+            getTheme: () => localStorage.getItem('md_theme') || 'dark',
+            setTheme: (theme) => localStorage.setItem('md_theme', theme)
+        };
+
+        // ==================== 2. 初始化 ====================
+        function init() {
+            // 初始化主題
+            const theme = Storage.getTheme();
+            setTheme(theme);
+
+            // 配置 marked.js
+            marked.setOptions({
+                breaks: true, // 支援單一換行
+                gfm: true     // 支援 Github Flavored Markdown (包含表格、任務列表等)
+            });
+
+            // 載入筆記
+            notes = Storage.getNotes();
+            if (notes.length === 0) {
+                createNote();
+            } else {
+                activeNoteId = Storage.getActiveNoteId();
+                if (!activeNoteId || !notes.find(n => n.id === activeNoteId)) {
+                    activeNoteId = notes[0].id;
+                }
+                switchNote(activeNoteId);
+            }
+
+            renderNoteList();
+        }
+
+        // ==================== 3. 筆記管理功能 ====================
+        function createNote() {
+            const tutorialContent = `# 歡迎使用 Markdown 即時預覽筆記本！ 👋
+
+這是一個功能強大的 **Markdown 編輯器**，支援即時預覽與自動儲存。
+
+## 🚀 快速上手
+- **左側編輯**：直接在左邊輸入內容。
+- **右側預覽**：右邊會即時顯示渲染後的結果。
+- **格式工具**：使用上方工具列快速套用格式。
+
+## ⌨️ 常用快捷鍵
+- \`Ctrl + B\`：**粗體**
+- \`Ctrl + I\`：*斜體*
+- \`Ctrl + \\\`：切換側邊欄
+- \`F11\`：全螢幕模式
+
+## 💡 小提示
+- 所有內容會**自動儲存**在瀏覽器中。
+- 您可以點擊右上方按鈕切換**深色/淺色主題**。
+- 支援拖曳中間的分隔線來調整比例。
+
+開始寫下您的第一則筆記吧！`;
+
+            const newNote = {
+                id: Date.now().toString(),
+                content: tutorialContent,
+                updatedAt: Date.now()
+            };
+            notes.push(newNote);
+            Storage.saveNotes(notes);
+            switchNote(newNote.id);
+            renderNoteList();
+        }
+
+        function deleteNote(id, e) {
+            e.stopPropagation();
+            if (!confirm('確定要刪除這篇筆記嗎？')) return;
+            
+            notes = notes.filter(n => n.id !== id);
+            if (notes.length === 0) {
+                createNote();
+            } else if (activeNoteId === id) {
+                switchNote(notes[0].id);
+            }
+            
+            Storage.saveNotes(notes);
+            renderNoteList();
+        }
+
+        function switchNote(id) {
+            activeNoteId = id;
+            Storage.setActiveNoteId(id);
+            const note = notes.find(n => n.id === id);
+            if (note) {
+                editor.value = note.content;
+                updatePreview();
+            }
+            renderNoteList();
+        }
+
+        // 擷取筆記標題 (抓取第一行標題或文字)
+        function getNoteTitle(content) {
+            const lines = content.split('\n');
+            for (let line of lines) {
+                line = line.trim();
+                if (line.startsWith('#')) return line.replace(/^#+\s*/, '') || '未命名筆記';
+            }
+            for (let line of lines) {
+                line = line.trim();
+                if (line) return line.length > 20 ? line.substring(0, 20) + '...' : line;
+            }
+            return '未命名筆記';
+        }
+
+        // 格式化時間
+        function formatDate(timestamp) {
+            const d = new Date(timestamp);
+            return `${d.getFullYear()}/${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getDate().toString().padStart(2,'0')} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+        }
+
+        function renderNoteList() {
+            noteList.innerHTML = '';
+            // 依更新時間排序 (新 -> 舊)
+            const sortedNotes = [...notes].sort((a, b) => b.updatedAt - a.updatedAt);
+            
+            sortedNotes.forEach(note => {
+                const li = document.createElement('li');
+                li.className = `note-item ${note.id === activeNoteId ? 'active' : ''}`;
+                li.onclick = () => switchNote(note.id);
+                
+                const title = getNoteTitle(note.content);
+                const date = formatDate(note.updatedAt);
+                
+                li.innerHTML = `
+                    <div class="note-info">
+                        <div class="note-title">${escapeHtml(title)}</div>
+                        <div class="note-date">${date}</div>
+                    </div>
+                    <button class="btn-delete" title="刪除"><i class="fas fa-trash"></i></button>
+                `;
+                
+                li.querySelector('.btn-delete').onclick = (e) => deleteNote(note.id, e);
+                noteList.appendChild(li);
+            });
+        }
+
+        function escapeHtml(unsafe) {
+            return unsafe.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        // ==================== 4. 編輯與預覽核心 ====================
+        function updatePreview() {
+            const content = editor.value;
+            
+            // 渲染 Markdown
+            preview.innerHTML = marked.parse(content);
+            
+            // 語法高亮套用
+            preview.querySelectorAll('pre code').forEach((block) => {
+                hljs.highlightElement(block);
+            });
+
+            updateStats(content);
+            autoSave();
+        }
+
+        // 字數統計
+        function updateStats(content) {
+            const lines = content.split('\n').length;
+            const cnWords = (content.match(/[\u4e00-\u9fa5]/g) || []).length;
+            const enWords = (content.match(/[a-zA-Z0-9]+/g) || []).length;
+            const totalWords = cnWords + enWords;
+            
+            document.getElementById('word-count').innerText = totalWords;
+            document.getElementById('cn-word-count').innerText = cnWords;
+            document.getElementById('line-count').innerText = lines;
+        }
+
+        // 自動儲存防抖機制 (Debounce)
+        function autoSave() {
+            clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(() => {
+                const note = notes.find(n => n.id === activeNoteId);
+                if (note) {
+                    note.content = editor.value;
+                    note.updatedAt = Date.now();
+                    Storage.saveNotes(notes);
+                    renderNoteList(); // 更新側邊欄標題與時間
+                }
+            }, 500);
+        }
+
+        editor.addEventListener('input', updatePreview);
+
+        // 同步捲動 (雙向)
+        let isEditorScrolling = false;
+        let isPreviewScrolling = false;
+
+        editor.addEventListener('scroll', () => {
+            if (isPreviewScrolling) { isPreviewScrolling = false; return; }
+            isEditorScrolling = true;
+            const percentage = editor.scrollTop / (editor.scrollHeight - editor.clientHeight);
+            previewPane.scrollTop = percentage * (previewPane.scrollHeight - previewPane.clientHeight);
+        });
+
+        previewPane.addEventListener('scroll', () => {
+            if (isEditorScrolling) { isEditorScrolling = false; return; }
+            isPreviewScrolling = true;
+            const percentage = previewPane.scrollTop / (previewPane.scrollHeight - previewPane.clientHeight);
+            editor.scrollTop = percentage * (editor.scrollHeight - editor.clientHeight);
+        });
+
+        // ==================== 5. 拖曳分隔線功能 ====================
+        function startResize(e) {
+            isResizing = true;
+            resizer.classList.add('active');
+            document.body.style.cursor = 'col-resize';
+            // 防止拖曳時選取文字或受到 iframe 干擾
+            editorPane.style.pointerEvents = 'none';
+            previewPane.style.pointerEvents = 'none';
+        }
+
+        function resize(e) {
+            if (!isResizing) return;
+            const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+            const containerRect = workspace.getBoundingClientRect();
+            
+            let newWidth = ((clientX - containerRect.left) / containerRect.width) * 100;
+            // 限制比例在 20% 到 80% 之間
+            if (newWidth < 20) newWidth = 20;
+            if (newWidth > 80) newWidth = 80;
+            
+            editorPane.style.flex = `0 0 ${newWidth}%`;
+            previewPane.style.flex = `1 1 0%`;
+        }
+
+        function stopResize() {
+            if (isResizing) {
+                isResizing = false;
+                resizer.classList.remove('active');
+                document.body.style.cursor = 'default';
+                editorPane.style.pointerEvents = 'auto';
+                previewPane.style.pointerEvents = 'auto';
+            }
+        }
+
+        resizer.addEventListener('mousedown', startResize);
+        document.addEventListener('mousemove', resize);
+        document.addEventListener('mouseup', stopResize);
+        
+        // 觸控支援
+        resizer.addEventListener('touchstart', startResize, {passive: true});
+        document.addEventListener('touchmove', resize, {passive: true});
+        document.addEventListener('touchend', stopResize);
+
+        // ==================== 6. 工具列格式化功能 ====================
+        function insertFormat(prefix, suffix, defaultText) {
+            const start = editor.selectionStart;
+            const end = editor.selectionEnd;
+            const text = editor.value;
+            const selectedText = text.substring(start, end);
+            
+            const replacement = selectedText ? selectedText : defaultText;
+            
+            // 組合新字串
+            editor.value = text.substring(0, start) + prefix + replacement + suffix + text.substring(end);
+            
+            // 重新定位游標
+            editor.focus();
+            if (selectedText) {
+                editor.selectionStart = start;
+                editor.selectionEnd = start + prefix.length + replacement.length + suffix.length;
+            } else {
+                editor.selectionStart = start + prefix.length;
+                editor.selectionEnd = start + prefix.length + replacement.length;
+            }
+            updatePreview();
+        }
+
+        document.querySelectorAll('.format-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const format = btn.dataset.format;
+                switch(format) {
+                    case 'bold': insertFormat('**', '**', '粗體文字'); break;
+                    case 'italic': insertFormat('*', '*', '斜體文字'); break;
+                    case 'strikethrough': insertFormat('~~', '~~', '刪除線文字'); break;
+                    case 'h1': insertFormat('# ', '', '標題 1'); break;
+                    case 'h2': insertFormat('## ', '', '標題 2'); break;
+                    case 'h3': insertFormat('### ', '', '標題 3'); break;
+                    case 'ul': insertFormat('- ', '', '列表項目'); break;
+                    case 'ol': insertFormat('1. ', '', '列表項目'); break;
+                    case 'task': insertFormat('- [ ] ', '', '待辦事項'); break;
+                    case 'quote': insertFormat('> ', '', '引用文字'); break;
+                    case 'code': insertFormat('`', '`', '程式碼'); break;
+                    case 'codeblock': insertFormat('```\n', '\n```', '程式碼區塊'); break;
+                    case 'link': insertFormat('[', '](https://)', '連結文字'); break;
+                    case 'image': insertFormat('![', '](https://)', '圖片描述'); break;
+                    case 'table': insertFormat('\n| 標題1 | 標題2 |\n| --- | --- |\n| 內容1 | 內容2 |\n', '', ''); break;
+                    case 'hr': insertFormat('\n---\n', '', ''); break;
+                }
+            });
+        });
+
+        // 支援 Tab 鍵縮排
+        editor.addEventListener('keydown', function(e) {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                insertFormat('    ', '', ''); // 插入 4 個空白
+            }
+        });
+
+        // ==================== 7. 檢視模式切換 ====================
+        const btnEdit = document.getElementById('btn-view-edit');
+        const btnSplit = document.getElementById('btn-view-split');
+        const btnPreview = document.getElementById('btn-view-preview');
+
+        function setViewMode(mode) {
+            [btnEdit, btnSplit, btnPreview].forEach(btn => btn.classList.remove('active'));
+            
+            if (mode === 'edit') {
+                btnEdit.classList.add('active');
+                editorPane.style.display = 'flex';
+                editorPane.style.flex = '1 1 100%';
+                resizer.style.display = 'none';
+                previewPane.style.display = 'none';
+            } else if (mode === 'split') {
+                btnSplit.classList.add('active');
+                editorPane.style.display = 'flex';
+                editorPane.style.flex = '0 0 50%';
+                resizer.style.display = 'block';
+                previewPane.style.display = 'flex';
+                previewPane.style.flex = '1 1 0%';
+            } else if (mode === 'preview') {
+                btnPreview.classList.add('active');
+                editorPane.style.display = 'none';
+                resizer.style.display = 'none';
+                previewPane.style.display = 'flex';
+                previewPane.style.flex = '1 1 100%';
+            }
+        }
+
+        btnEdit.addEventListener('click', () => setViewMode('edit'));
+        btnSplit.addEventListener('click', () => setViewMode('split'));
+        btnPreview.addEventListener('click', () => setViewMode('preview'));
+
+        // ==================== 8. 匯出功能 ====================
+        document.getElementById('btn-export-md').addEventListener('click', () => {
+            const note = notes.find(n => n.id === activeNoteId);
+            if (!note) return;
+            const blob = new Blob([note.content], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${getNoteTitle(note.content)}.md`;
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+
+        document.getElementById('btn-export-html').addEventListener('click', () => {
+            const note = notes.find(n => n.id === activeNoteId);
+            if (!note) return;
+            const htmlContent = `<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>${getNoteTitle(note.content)}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        body { font-family: 'Inter', system-ui, sans-serif; max-width: 800px; margin: 0 auto; padding: 2rem; line-height: 1.6; color: #333; }
+        img { max-width: 100%; border-radius: 6px; }
+        code { background: #f4f4f4; padding: 0.2em 0.4em; border-radius: 4px; font-family: monospace; }
+        pre code { background: transparent; padding: 0; }
+        pre { background: #282c34; color: #abb2bf; padding: 1rem; border-radius: 6px; overflow-x: auto; }
+        blockquote { border-left: 4px solid #3b82f6; margin: 0; padding-left: 1rem; color: #666; background: #f8fafc; padding: 0.5rem 1rem; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ddd; padding: 8px; }
+        th { background-color: #f2f2f2; }
+        @media (prefers-color-scheme: dark) {
+            body { background: #121212; color: #e0e0e0; }
+            code { background: #333; }
+            blockquote { border-color: #8b5cf6; color: #aaa; background: #1e1e1e; }
+            th, td { border-color: #444; }
+            th { background-color: #222; }
+        }
+    </style>
+</head>
+<body>
+    ${marked.parse(note.content)}
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"><\/script>
+    <script>hljs.highlightAll();<\/script>
+</body>
+</html>`;
+            const blob = new Blob([htmlContent], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${getNoteTitle(note.content)}.html`;
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+
+        document.getElementById('btn-print').addEventListener('click', () => {
+            window.print();
+        });
+
+        // ==================== 9. 主題與介面切換 ====================
+        function setTheme(theme) {
+            htmlElement.setAttribute('data-theme', theme);
+            Storage.setTheme(theme);
+            
+            const hljsTheme = document.getElementById('hljs-theme');
+            const themeIcon = document.querySelector('#btn-theme i');
+            
+            if (theme === 'dark') {
+                hljsTheme.href = "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css";
+                themeIcon.className = 'fas fa-sun';
+            } else {
+                hljsTheme.href = "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-light.min.css";
+                themeIcon.className = 'fas fa-moon';
+            }
+        }
+
+        document.getElementById('btn-theme').addEventListener('click', () => {
+            const current = htmlElement.getAttribute('data-theme');
+            setTheme(current === 'dark' ? 'light' : 'dark');
+        });
+
+        document.getElementById('btn-toggle-sidebar').addEventListener('click', () => {
+            sidebar.classList.toggle('hidden');
+            document.getElementById('btn-toggle-sidebar').classList.toggle('active');
+        });
+
+        document.getElementById('btn-close-sidebar-inner').addEventListener('click', () => {
+            sidebar.classList.add('hidden');
+            document.getElementById('btn-toggle-sidebar').classList.remove('active');
+        });
+
+        document.getElementById('btn-fullscreen').addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => console.log(err));
+                document.querySelector('#btn-fullscreen i').className = 'fas fa-compress';
+            } else {
+                document.exitFullscreen();
+                document.querySelector('#btn-fullscreen i').className = 'fas fa-expand';
+            }
+        });
+
+        document.getElementById('btn-new-note').addEventListener('click', createNote);
+
+        // ==================== 10. 鍵盤快捷鍵 ====================
+        document.addEventListener('keydown', e => {
+            if (e.ctrlKey || e.metaKey) {
+                const key = e.key.toLowerCase();
+                if (['b', 'i', 'k', 's', 'n', '\\'].includes(key)) {
+                    e.preventDefault();
+                    switch(key) {
+                        case 'b': insertFormat('**', '**', '粗體文字'); break;
+                        case 'i': insertFormat('*', '*', '斜體文字'); break;
+                        case 'k': insertFormat('[', '](https://)', '連結文字'); break;
+                        case 's': 
+                            // 手動儲存
+                            const note = notes.find(n => n.id === activeNoteId);
+                            if(note) {
+                                note.content = editor.value;
+                                note.updatedAt = Date.now();
+                                Storage.saveNotes(notes);
+                                renderNoteList();
+                            }
+                            break;
+                        case 'n': createNote(); break;
+                        case '\\': 
+                            sidebar.classList.toggle('hidden'); 
+                            document.getElementById('btn-toggle-sidebar').classList.toggle('active');
+                            break;
+                    }
+                }
+            }
+            if (e.key === 'F11') {
+                e.preventDefault();
+                document.getElementById('btn-fullscreen').click();
+            }
+        });
+
+        // 啟動應用程式
+        window.addEventListener('DOMContentLoaded', init);
+
+    </script>
+</body>
+</html>
